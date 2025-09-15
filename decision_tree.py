@@ -8,57 +8,69 @@ At the end there is some test code that you can use to test your implementation 
 """
 
 def count(y: np.ndarray) -> np.ndarray:
-    """
-    Count unique values in y and return the proportions of each class sorted by label in ascending order.
-    Example:
-        count(np.array([3, 0, 0, 1, 1, 1, 2, 2, 2, 2])) -> np.array([0.2, 0.3, 0.4, 0.1])
-    """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
+    unique_values = np.unique(y) #converts to an np as an new array with the unique elements from y
+
+    value_probabilities = []
+    numbers_in_array = len(y)
+
+    for value in unique_values:
+        number_of_occurrences= np.sum(y == value) #creates a boolean numpy array (false,true,true) and adds up the true values.
+                                                    #we need np. as it is much faster than just sum (importent for large datasets)
+        value_probability = number_of_occurrences/numbers_in_array
+        value_probabilities.append(value_probability)
+
+    return np.array(value_probabilities) #converting the list into a numpy array 
+ 
+
 
 
 def gini_index(y: np.ndarray) -> float:
-    """
-    Return the Gini Index of a given NumPy array y.
-    The forumla for the Gini Index is 1 - sum(probs^2), where probs are the proportions of each class in y.
-    Example:
-        gini_index(np.array([1, 1, 2, 2, 3, 3, 4, 4])) -> 0.75
-    """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
+    probabilities = count(y)
+
+    squared_probabilities = []
+    for probability in probabilities:
+        squared_probabilities.append(probability ** 2)
+    
+    gini = 1 - sum(squared_probabilities)
+    return float(gini)
 
 
 def entropy(y: np.ndarray) -> float:
-    """
-    Return the entropy of a given NumPy array y.
-    """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
+    probabilities = count(y)
+
+    multiplied_and_log_probalilities = []
+
+    for probability in probabilities:
+        if probability >0: 
+            multiplied_and_log_probalilities.append(probability * np.log2(probability))
+        else:
+            multiplied_and_log_probalilities.append(0) #we need to have an catch all to the cases where the probability is 0, 
+                                                        #because computing log(0) would cause an error
+    
+    entropy = -sum(multiplied_and_log_probalilities)
+    return float(entropy)
 
 
-def split(x: np.ndarray, value: float) -> np.ndarray:
-    """
-    Return a boolean mask for the elements of x satisfying x <= value.
-    Example:
-        split(np.array([1, 2, 3, 4, 5, 2]), 3) -> np.array([True, True, True, False, False, True])
-    """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
-
+def split(x: np.ndarray, value: float) -> np.ndarray: #returns an array of booleans [True,True,False]
+    mask = x <= value #filters to a set of booleans, called mask because it is (masking) parts of the data 
+    return mask        #If its true then it goes left, if false right
+    
 
 def most_common(y: np.ndarray) -> int:
-    """
-    Return the most common element in y.
-    Example:
-        most_common(np.array([1, 2, 2, 3, 3, 3, 4, 4, 4, 4])) -> 4
-    """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
+    unique_values = np.unique(y)
+
+    total_value_count = 0
+    highest_value = None
+
+
+    for value in unique_values:
+        value_count = np.sum(y == value)
+
+        if value_count > total_value_count:
+            total_value_count = value_count
+            highest_value = value
+
+    return int(highest_value)
 
 
 class Node:
@@ -71,52 +83,162 @@ class Node:
 
     def __init__(
         self,
-        feature: int = 0,
-        threshold: float = 0.0,
-        left: int | Self | None = None,
-        right: int | Self | None = None,
-        value: int | None = None,
+        feature: int = 0, # which column of x this node splits on
+        threshold: float = 0.0, # cutoff value for splitting
+        left: int | Self | None = None, #after split data points go left
+        right: int | Self | None = None, #data points go right
+        value: int | None = None, # if value is a leaf node (stores the predicted class)
     ) -> None:
         self.feature = feature
         self.threshold = threshold
         self.left = left
         self.right = right
         self.value = value
+        #internal node may look like Node(feature=2, threshold=0.5, left=..., right=...)
+
 
     def is_leaf(self) -> bool:
         # Return True iff the node is a leaf node
+        # helper to check if node is leaf node
+        # mightlook like Node(value = 1)
         return self.value is not None
+    
+    def to_string(self, depth=0, prefix=""):
+        """
+        Return a string representation of the tree rooted at this node.
+        Uses indentation and ASCII branches for visualization.
+        """
+        indent = "    " * depth
+        if self.is_leaf():
+            return f"{indent}{prefix}Leaf → predict {self.value}"
+        else:
+            s = f"{indent}{prefix}Feature {self.feature} <= {self.threshold}\n"
+            s += self.left.to_string(depth + 1, "├── ") + "\n"
+            s += self.right.to_string(depth + 1, "└── ")
+            return s
 
 
 class DecisionTree:
-    def __init__(
-        self,
-        max_depth: int | None = None,
-        criterion: str = "entropy",
-    ) -> None:
-        self.root = None
-        self.criterion = criterion
-        self.max_depth = max_depth
+    # controller class that builds the decision tree
+    def __init__(self, max_depth: int | None = None, criterion: str = "entropy",) -> None:
+        self.root = None #store the top Node of the entire tree once its trained
+        self.criterion = criterion # which impurity measure to use (entropy or gini)
+        self.max_depth = max_depth # limits how deep the tree can grow (prevents overfitting)
+        if self.criterion == "entropy": #defined here because only defined once used several times
+            self.impurityf = entropy
+        else:
+            self.impurityf = gini_index
 
-    def fit(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-    ):
+    def find_threshold(self, x_column: np.ndarray, y: np.ndarray):
         """
-        This functions learns a decision tree given (continuous) features X and (integer) labels y.
+    Given a single feature column and labels y,
+    find the threshold that gives the best information gain.
+    Returns (best_threshold, best_gain).
+    #gain = impurity(before split) - weighted impurity(after split)
+    """
+        currentnodeimp = self.impurityf(y)
+        values = np.unique(x_column)
+        best_column_gain = -1 # for testing of best column gain
+        best_column_threshold = None
+        for threshold in values:
+            mask = split(x_column, threshold) #creates a split based on a threshold made from values in column
+            left_y, right_y = y[mask], y[~mask] # splits the current column into "left and right labels" based on the mask for x_column
+            if len(left_y) == 0 or len(right_y) == 0: #hopping over useless splits
+                continue
+            #testing the threshold "if i test here how mixed are the child nodes"
+            n, n_left, n_right = len(y), len(left_y), len(right_y)
+            child_impurity = (n_left/n) * self.impurityf(left_y) + (n_right/n) * self.impurityf(right_y) #average impurity of child nodes
+            gain_for_split = currentnodeimp - child_impurity
+            if gain_for_split > best_column_gain: #checks if this is the best gain split for the column
+                best_column_gain = gain_for_split
+                best_column_threshold = threshold
+        return best_column_threshold, best_column_gain #returns the best column threshold and gain
+        
+    def find_best_feature(self, X: np.ndarray, y: np.ndarray):
         """
-        raise NotImplementedError(
-            "Implement this function"
-        )  # Remove this line when you implement the function
+    Loop over all features, call best_threshold for each,
+    and return the best (feature, threshold).
+    """
+        best_gain = -1 #for overall testing of best feature
+        best_feature = None
+        best_threshold = None
+        for feature in range(X.shape[1]):
+            x_column = X[:, feature]
+            threshold, gain = self.find_threshold(x_column, y)
+            if  gain > best_gain:
+                best_gain = gain
+                best_feature = feature
+                best_threshold = threshold
+        return best_feature, best_threshold
+
+    def build_tree(self, X, y, depth = 0): #building the tree is recursive whereas fit is used only once so build tree def is defined
+    #step 1, stopping conditions
+        if len(np.unique(y)) == 1: #check if all labels are the same
+            return Node(value = y[0]) #node has label of the only label left
+        
+        if len(np.unique(X, axis=0)) == 1: # unique(X, axis = 0) tells NumPy to look at rows that are unique not elements
+            return Node(value=most_common(y)) #returns label of the most common label in the node currently
+
+        if self.max_depth is not None and depth >= self.max_depth: # max depth reached 
+            return Node(value=most_common(y)) #returns label of the most common label in the node currently
+        
+    #step 2, choose best split to recursively split the dataset so the labels in each subset become more “pure”
+        # best feature/threshold: column in dataset that does the best job of separating the labels; use of best split function
+        best_feature, best_threshold = self.find_best_feature(X, y) #finding best feature uses find threshold and returns both threshold and feature
+
+        if best_feature is None or best_threshold is None: #checks if None is passed and if so value is most comon y
+            return Node(value=most_common(y))
+        
+        # create node
+        node = Node(feature = best_feature, threshold= best_threshold)
+        # partition data 
+        mask = split(X[:,best_feature], best_threshold)
+        left_X, left_y = X[mask], y[mask]
+        right_X, right_y = X[~mask], y[~mask]
+        # recurse
+        node.left = self.build_tree(left_X, left_y, depth +1)
+        node.right = self.build_tree(right_X, right_y, depth +1)
+        return node
+    
+    def fit(self, X: np.ndarray, y: np.ndarray,): #recursive builder
+        self.root = self.build_tree(X, y, depth = 0)
+        """
+        This functions learns a decision tree given (continuous) features X and (integer) labels y but is not recursive because called once.
+        """
+        # ID3 algorithm 
+            #find the best split at the root
+            #create a Node
+            #recursivly split left and right child datasets until stopping conditions(max depth, pure labels)
+            # store final root node in self.root
+        #BUILDING THE ACTUAL TREE BASED ON TEST DATA
+
+        # create a Node(feature= .., threshold == )
+            #recursivly assigns Node.left and Node.right by calling itself on subsets of the data
+    
+    def traverse(self, node: Node, row: np.ndarray):
+        if node.is_leaf():
+            return node.value
+        if row[node.feature] <= node.threshold: #defining which way to go
+
+            return self.traverse(node.left, row)
+        else:
+            return self.traverse(node.right, row)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
         Given a NumPy array X of features, return a NumPy array of predicted integer labels.
         """
-        raise NotImplementedError(
-            "Implement this function"
-        )  # Remove this line when you implement the function
+        #Used after training
+        #same as fit keep it clean use a helper function to encapsulate recusion.
+        #for each row X start at self.root and follow the branches, check thresholds and features
+        #until you land in a leaf node then return the leafs value
+        results = []
+        start_node = self.root #for efficiency 
+        for row in X: # defines a loop that takes in a object in data X(Test/validation)
+            label = self.traverse(start_node, row)
+            results.append(label)
+        return np.array(results)
+        
 
 
 if __name__ == "__main__":
@@ -124,7 +246,7 @@ if __name__ == "__main__":
     from sklearn.datasets import make_classification
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score
-
+    
     seed = 0
 
     np.random.seed(seed)
@@ -136,9 +258,14 @@ if __name__ == "__main__":
         X, y, test_size=0.3, random_state=seed, shuffle=True
     )
 
+    # looking at the data:
+
     # Expect the training accuracy to be 1.0 when max_depth=None
     rf = DecisionTree(max_depth=None, criterion="entropy")
+    
     rf.fit(X_train, y_train)
 
+
     print(f"Training accuracy: {accuracy_score(y_train, rf.predict(X_train))}")
+    print(rf.root.to_string())
     print(f"Validation accuracy: {accuracy_score(y_val, rf.predict(X_val))}")
