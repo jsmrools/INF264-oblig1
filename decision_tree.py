@@ -120,10 +120,11 @@ class Node:
 
 class DecisionTree:
     # controller class that builds the decision tree
-    def __init__(self, max_depth: int | None = None, criterion: str = "entropy",) -> None:
+    def __init__(self, max_depth: int | None = None, criterion: str = "entropy", max_features=None) -> None:
         self.root = None #store the top Node of the entire tree once its trained
         self.criterion = criterion # which impurity measure to use (entropy or gini)
         self.max_depth = max_depth # limits how deep the tree can grow (prevents overfitting)
+        self.max_features = max_features
         if self.criterion == "entropy": #defined here because only defined once used several times
             self.impurityf = entropy
         else:
@@ -147,7 +148,7 @@ class DecisionTree:
                 continue
             #testing the threshold "if i test here how mixed are the child nodes"
             n, n_left, n_right = len(y), len(left_y), len(right_y)
-            child_impurity = (n_left/n) * self.impurityf(left_y) + (n_right/n) * self.impurityf(right_y) #average impurity of child nodes
+            child_impurity = (n_left/n) * self.impurityf(left_y) + (n_right/n) * self.impurityf(right_y) #weighted mean impurity of child nodes
             gain_for_split = currentnodeimp - child_impurity
             if gain_for_split > best_column_gain: #checks if this is the best gain split for the column
                 best_column_gain = gain_for_split
@@ -156,13 +157,34 @@ class DecisionTree:
         
     def find_best_feature(self, X: np.ndarray, y: np.ndarray):
         """
-    Loop over all features, call best_threshold for each,
+    Loop over all features, call find_threshold for each,
     and return the best (feature, threshold).
     """
+        all_features = X.shape[1]
+
+        #______CHOOSE # OF FEATURES_____ ##FOR RANDOM FOREST
+        if self.max_features == "sqrt":
+            number_of_feat = int(np.sqrt(all_features))
+        elif self.max_features == "log2":
+            number_of_feat = int(np.log2(all_features))
+        elif self.max_features is None:
+            number_of_feat = all_features
+        else:
+            number_of_feat = int(self.max_features) #this is purely just extra, if there was a need to decide this not based on log or sqrt
+        # if there is a data set with one feature it will crash the fix:
+        number_of_feat = max(1,number_of_feat)
+
+        # randomly select features w/out replacement, if the number of features doesnt change based on max_feat then it loops through em all
+        if number_of_feat == all_features:
+            rand_feat_int = np.arange(all_features)
+        else: #creates a random sample of the features for each split
+            rand_feat_int = np.random.choice(all_features, number_of_feat, replace = False)
+
+        #search for the best split among features
         best_gain = -1 #for overall testing of best feature
         best_feature = None
         best_threshold = None
-        for feature in range(X.shape[1]):
+        for feature in rand_feat_int: #loops over the array of choosen features
             x_column = X[:, feature]
             threshold, gain = self.find_threshold(x_column, y)
             if  gain > best_gain:
@@ -179,7 +201,7 @@ class DecisionTree:
         if len(np.unique(X, axis=0)) == 1: # unique(X, axis = 0) tells NumPy to look at rows that are unique not elements
             return Node(value=most_common(y)) #returns label of the most common label in the node currently
 
-        if self.max_depth is not None and depth >= self.max_depth: # max depth reached 
+        if self.max_depth is not None and depth >= self.max_depth: # if max depth defined and the current depth is more or equal to max depth
             return Node(value=most_common(y)) #returns label of the most common label in the node currently
         
     #step 2, choose best split to recursively split the dataset so the labels in each subset become more “pure”
