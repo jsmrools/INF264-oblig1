@@ -121,14 +121,18 @@ class Node:
 class DecisionTree:
     # controller class that builds the decision tree
     def __init__(self, max_depth: int | None = None, criterion: str = "entropy", max_features=None) -> None:
+        if criterion not in ("entropy","gini"):
+            raise ValueError("the criterion must be 'entropy' or 'gini'") #makes sure the users put in a valid criterion
         self.root = None #store the top Node of the entire tree once its trained
         self.criterion = criterion # which impurity measure to use (entropy or gini)
         self.max_depth = max_depth # limits how deep the tree can grow (prevents overfitting)
         self.max_features = max_features
-        if self.criterion == "entropy": #defined here because only defined once used several times
+        
+        if self.criterion == "entropy":
             self.impurityf = entropy
         else:
             self.impurityf = gini_index
+       
 
     def find_threshold(self, x_column: np.ndarray, y: np.ndarray):
         """
@@ -173,6 +177,8 @@ class DecisionTree:
             number_of_feat = int(self.max_features) #this is purely just extra, if there was a need to decide this not based on log or sqrt
         # if there is a data set with one feature it will crash the fix:
         number_of_feat = max(1,number_of_feat)
+        number_of_feat = min(number_of_feat, all_features) #making sure to reduce error if person passes a large numer larger than num og feat
+
 
         # randomly select features w/out replacement, if the number of features doesnt change based on max_feat then it loops through em all
         if number_of_feat == all_features:
