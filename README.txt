@@ -2,7 +2,7 @@ This project is part of the INF264 course and focuses on implementing and evalua
 
 - To reproduce the results presented in the report, open and run the notebook:
 
-run_experiments.ipynb (run all cells sequentially).
+run_experiments.ipynb, restart kernel if already started, and run all cells.
 
 ****Project Structure:
 
